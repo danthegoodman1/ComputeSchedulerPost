@@ -1,15 +1,7 @@
-# GoAPITemplate
+# Compute scheduler blog post
 
-## Log Context
+## CODE QUALITY NOTE:
 
-The thing that gives logging a separate context is the function call:
+There are lots of cases where I have `must` variations of functions that just panic on error. Obviously this is a bad idea, and is entirely done to keep the code as terse as possible.
 
-```go
-logger := gologger.NewLogger()
-// ...
-ctx = logger.WithContext(ctx)
-```
-
-Otherwise all logging will share the context (weird I know).
-
-From here you can use `logger := zerolog.Ctx(ctx)`
+This code should not be forked for production use, but serve as a point of reference for how this system works.

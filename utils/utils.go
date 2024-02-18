@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -155,4 +156,19 @@ func AsErr[T error](err error) (te T, ok bool) {
 func IsErr[T error](err error) bool {
 	_, ok := AsErr[T](err)
 	return ok
+}
+
+func JSONMustMarshal(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func JSONMustUnmarshal(b []byte, v any) {
+	err := json.Unmarshal(b, v)
+	if err != nil {
+		panic(err)
+	}
 }

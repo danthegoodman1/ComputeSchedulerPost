@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"github.com/danthegoodman1/GoAPITemplate/utils"
 	"github.com/joho/godotenv"
+	"github.com/nats-io/nats.go"
 	"os"
 	"os/signal"
 	"syscall"
@@ -42,7 +44,13 @@ func startWorkerNode() {
 func startCoordinator() {
 	logger.Debug().Msg("starting coordinator api")
 
-	httpServer := http_server.StartHTTPServer()
+	nc, err := nats.Connect(utils.NATS_URL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to connect to nats")
+	}
+	defer nc.Close()
+
+	httpServer := http_server.StartHTTPServer(nc)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

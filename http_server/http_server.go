@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nats-io/nats.go"
 	"net"
 	"net/http"
 	"os"
@@ -21,14 +22,16 @@ import (
 var logger = gologger.NewLogger()
 
 type HTTPServer struct {
-	Echo *echo.Echo
+	Echo       *echo.Echo
+	NatsClient *nats.Conn
 }
 
 type CustomValidator struct {
 	validator *validator.Validate
+	NatsConn  *nats.Conn
 }
 
-func StartHTTPServer() *HTTPServer {
+func StartHTTPServer(nc *nats.Conn) *HTTPServer {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", utils.GetEnvOrDefault("HTTP_PORT", "8080")))
 	if err != nil {
 		logger.Error().Err(err).Msg("error creating tcp listener, exiting")
@@ -45,8 +48,11 @@ func StartHTTPServer() *HTTPServer {
 	s.Echo.Use(middleware.CORS())
 	s.Echo.Validator = &CustomValidator{validator: validator.New()}
 
+	s.NatsClient = nc
+
 	// technical - no auth
 	s.Echo.GET("/hc", s.HealthCheck)
+	s.Echo.POST("/schedule", ccHandler(s.PostSchedule))
 
 	s.Echo.Listener = listener
 	go func() {
