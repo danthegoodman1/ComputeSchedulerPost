@@ -2,22 +2,14 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"github.com/danthegoodman1/GoAPITemplate/observability"
-	"github.com/danthegoodman1/GoAPITemplate/temporal"
 	"github.com/joho/godotenv"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/danthegoodman1/GoAPITemplate/crdb"
 	"github.com/danthegoodman1/GoAPITemplate/gologger"
 	"github.com/danthegoodman1/GoAPITemplate/http_server"
-	"github.com/danthegoodman1/GoAPITemplate/migrations"
-	"github.com/danthegoodman1/GoAPITemplate/utils"
 )
 
 var logger = gologger.NewLogger()
@@ -30,33 +22,25 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	logger.Debug().Msg("starting unnamed api")
 
-	if err := crdb.ConnectToDB(); err != nil {
-		logger.Error().Err(err).Msg("error connecting to CRDB")
-		os.Exit(1)
+	if len(os.Args) > 1 && os.Args[1] == "coordinator" {
+		startCoordinator()
+		return
+	} else if len(os.Args) > 1 && os.Args[1] == "worker" {
+		startWorkerNode()
+		return
 	}
 
-	err := migrations.CheckMigrations(utils.CRDB_DSN)
-	if err != nil {
-		logger.Error().Err(err).Msg("Error checking migrations")
-		os.Exit(1)
-	}
+	logger.Fatal().Msg("must specify coordinator or worker as first argument")
+}
 
-	prometheusReporter := observability.NewPrometheusReporter()
-	go func() {
-		err := observability.StartInternalHTTPServer(":8042", prometheusReporter)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error().Err(err).Msg("internal server couldn't start")
-			os.Exit(1)
-		}
-	}()
+func startWorkerNode() {
+	logger.Debug().Msg("starting worker node")
 
-	err = temporal.Run(context.Background(), prometheusReporter)
-	if err != nil {
-		logger.Error().Err(err).Msg("Temporal init error")
-		os.Exit(1)
-	}
+}
+
+func startCoordinator() {
+	logger.Debug().Msg("starting coordinator api")
 
 	httpServer := http_server.StartHTTPServer()
 
@@ -64,14 +48,6 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 	logger.Warn().Msg("received shutdown signal!")
-
-	// For AWS ALB needing some time to de-register pod
-	// Convert the time to seconds
-	sleepTime := utils.GetEnvOrDefaultInt("SHUTDOWN_SLEEP_SEC", 0)
-	logger.Info().Msg(fmt.Sprintf("sleeping for %ds before exiting", sleepTime))
-
-	time.Sleep(time.Second * time.Duration(sleepTime))
-	logger.Info().Msg(fmt.Sprintf("slept for %ds, exiting", sleepTime))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
