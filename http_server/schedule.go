@@ -14,7 +14,7 @@ import (
 type PostScheduleRequest struct {
 	Task         string // what task we are scheduling
 	Requirements scheduling.Requirements
-	Payload      *map[string]any // task payload
+	Payload      map[string]any // task payload
 }
 
 func (s *HTTPServer) PostSchedule(c *CustomContext) error {
@@ -23,14 +23,16 @@ func (s *HTTPServer) PostSchedule(c *CustomContext) error {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
 
+	// Request resources from workers
 	logger.Debug().Msgf("Asking workers to schedule '%s'", body.Task)
-	msg, err := s.NatsClient.Request(fmt.Sprintf("workers.%s", body.Task), utils.JSONMustMarshal(scheduling.ScheduleRequest{
+	msg, err := s.NatsClient.Request(fmt.Sprintf("scheduling.request.%s", body.Task), utils.JSONMustMarshal(scheduling.ScheduleRequest{
 		RequestID:    c.RequestID, // use the unique request ID
 		Task:         body.Task,
 		Requirements: body.Requirements,
 	}), time.Second*5)
+
 	if errors.Is(err, context.DeadlineExceeded) {
-		s.mustEmitCancel(c.RequestID) // tell the nodes to release resources
+		s.mustEmitRelease(c.RequestID, "") // tell all workers to release resources
 		return echo.NewHTTPError(http.StatusGatewayTimeout, "no workers responded in time")
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -39,16 +41,32 @@ func (s *HTTPServer) PostSchedule(c *CustomContext) error {
 	var workerRes scheduling.ScheduleResponse
 	utils.JSONMustUnmarshal(msg.Data, &workerRes)
 
-	logger.Debug().Msgf("Worker %s responded to schedule request")
+	logger.Debug().Msgf("Worker %s responded to schedule request", workerRes.WorkerID)
+	// tell other workers to release resources
+	s.mustEmitRelease(c.RequestID, workerRes.WorkerID)
 
-	s.mustEmitCancel(c.RequestID) // tell all nodes to release resources, the responding node will ignore this request
+	// Tell the worker that they are reserved, and to do the task
+	msg, err = s.NatsClient.Request(fmt.Sprintf("scheduling.reserve_task.%s", workerRes.WorkerID), utils.JSONMustMarshal(scheduling.ReserveRequest{
+		Task:    body.Task,
+		Payload: body.Payload,
+	}), time.Second*5)
 
-	return c.JSON(http.StatusOK, workerRes.Payload)
+	var reserveRes scheduling.ReserveResponse
+	utils.JSONMustUnmarshal(msg.Data, &reserveRes)
+
+	if reserveRes.Error != nil {
+		c.String(http.StatusInternalServerError, *reserveRes.Error)
+	}
+
+	return c.JSON(http.StatusOK, reserveRes.Payload)
 }
 
-func (s *HTTPServer) mustEmitCancel(requestID string) {
+func (s *HTTPServer) mustEmitRelease(requestID, exemptWorker string) {
 	// emit special cancel topic
-	err := s.NatsClient.Publish("workers._cancel", utils.JSONMustMarshal(scheduling.ReleaseResourcesMessage{RequestID: requestID}))
+	err := s.NatsClient.Publish("scheduling.release", utils.JSONMustMarshal(scheduling.ReleaseResourcesMessage{
+		RequestID:    requestID,
+		ExemptWorker: exemptWorker,
+	}))
 	if err != nil {
 		panic(err)
 	}
