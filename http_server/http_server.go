@@ -39,7 +39,6 @@ func StartHTTPServer() *HTTPServer {
 	}
 	s.Echo.HideBanner = true
 	s.Echo.HidePort = true
-	s.Echo.JSONSerializer = &utils.NoEscapeJSONSerializer{}
 
 	s.Echo.Use(CreateReqContext)
 	s.Echo.Use(LoggerMiddleware)
