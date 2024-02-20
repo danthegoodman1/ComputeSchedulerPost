@@ -10,6 +10,7 @@ import (
 	"go.uber.org/atomic"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -49,17 +50,38 @@ func main() {
 func startWorkerNode(nc *nats.Conn) {
 	logger.Debug().Msgf("starting worker node (%s)", utils.WORKER_ID)
 
-	available := atomic.NewBool(true) // because different goroutines will be accessing
+	availableSlots := atomic.NewInt64(utils.SLOTS)
+
+	// We need a sync map to track reservations
+	reservations := sync.Map{}
 
 	// Scheduling loop
 	_, err := nc.Subscribe("scheduling.request.*", func(msg *nats.Msg) {
 		logger.Debug().Msgf("Worker %s got scheduling request, reserving resources", utils.WORKER_ID)
 		// At the moment we don't care about resources, so we just reserve
-		if !available.Load() {
-			// just ignore
-			return
+		var request scheduling.ScheduleRequest
+		utils.JSONMustUnmarshal(msg.Data, &request)
+
+		// Check whether the region matches
+		if request.Requirements.Region != utils.REGION {
+			logger.Debug().Msgf(
+				"worker %s cannot fulfill request, different region",
+				utils.WORKER_ID,
+			)
 		}
-		available.Store(false)
+
+		// Check whether we have enough available slots
+		if request.Requirements.Slots > availableSlots.Load() {
+			logger.Debug().Msgf(
+				"worker %s cannot fulfill request, not enough slots",
+				utils.WORKER_ID,
+			)
+		}
+
+		// Reserve the slots
+		// Note: would need better handling to protect against going negative in prod
+		availableSlots.Sub(request.Requirements.Slots)
+		reservations.Store(request.RequestID, request.Requirements.Slots)
 
 		err := msg.Respond(utils.JSONMustMarshal(scheduling.ScheduleResponse{
 			WorkerID: utils.WORKER_ID,
@@ -82,7 +104,15 @@ func startWorkerNode(nc *nats.Conn) {
 			return
 		}
 
-		available.Store(true)
+		slots, found := reservations.LoadAndDelete(payload.RequestID)
+		if !found {
+			logger.Fatal().Msgf(
+				"did not find reservation for request %s, crashing to reset!",
+				payload.RequestID,
+			)
+		}
+		availableSlots.Add(slots.(int64))
+
 		logger.Debug().Msgf("Worker %s releasing resources", utils.WORKER_ID)
 	})
 	if err != nil {
@@ -105,7 +135,15 @@ func startWorkerNode(nc *nats.Conn) {
 			logger.Fatal().Err(err).Msg("failed to respond to reservation request")
 		}
 
-		available.Store(true) // we are done, we can release resources
+		// we are done, we can release resources
+		slots, found := reservations.LoadAndDelete(reservation.RequestID)
+		if !found {
+			logger.Fatal().Msgf(
+				"did not find reservation for request %s, crashing to reset!",
+				reservation.RequestID,
+			)
+		}
+		availableSlots.Add(slots.(int64))
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("error subscribing to scheduling.reserve.%s", utils.WORKER_ID)
