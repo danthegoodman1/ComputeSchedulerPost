@@ -2,10 +2,10 @@ package scheduling
 
 type (
 	Requirements struct {
-		Region string
+		Region string `validate:"required"`
 
 		// Arbitrary compute unit
-		Slots int
+		Slots int `validate:"required,gte=1"`
 	}
 
 	ScheduleRequest struct {
