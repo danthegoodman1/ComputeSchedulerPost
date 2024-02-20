@@ -135,7 +135,7 @@ func startWorkerNode(nc *nats.Conn) {
 
 		if sleepSec, ok := reservation.Payload["SleepSec"].(float64); ok {
 			logger.Debug().Msgf(
-				"worker %s sleeping for %d seconds",
+				"worker %s sleeping for %f seconds",
 				utils.WORKER_ID,
 				sleepSec,
 			)
