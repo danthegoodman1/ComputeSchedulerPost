@@ -2,8 +2,10 @@ package scheduling
 
 type (
 	Requirements struct {
-		// Fake resource
-		FooPoints int
+		Region string
+
+		// Arbitrary compute unit
+		Slots int
 	}
 
 	ScheduleRequest struct {
