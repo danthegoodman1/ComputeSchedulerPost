@@ -61,8 +61,8 @@ func startWorkerNode(nc *nats.Conn) {
 		var request scheduling.ScheduleRequest
 		utils.JSONMustUnmarshal(msg.Data, &request)
 
-		// Check whether the region matches
-		if request.Requirements.Region != utils.REGION {
+		// Check whether the region matches (if provided)
+		if request.Requirements.Region != "" && request.Requirements.Region != utils.REGION {
 			logger.Debug().Msgf(
 				"worker %s cannot fulfill request, different region",
 				utils.WORKER_ID,
