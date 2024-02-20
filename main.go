@@ -58,7 +58,6 @@ func startWorkerNode(nc *nats.Conn) {
 	// Scheduling loop
 	_, err := nc.Subscribe("scheduling.request.*", func(msg *nats.Msg) {
 		logger.Debug().Msgf("Worker %s got scheduling request, reserving resources", utils.WORKER_ID)
-		// At the moment we don't care about resources, so we just reserve
 		var request scheduling.ScheduleRequest
 		utils.JSONMustUnmarshal(msg.Data, &request)
 
