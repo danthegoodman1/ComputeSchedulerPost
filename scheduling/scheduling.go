@@ -5,7 +5,7 @@ type (
 		Region string `validate:"required"`
 
 		// Arbitrary compute unit
-		Slots int `validate:"required,gte=1"`
+		Slots int64 `validate:"required,gte=1"`
 	}
 
 	ScheduleRequest struct {
