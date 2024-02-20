@@ -48,7 +48,7 @@ func main() {
 }
 
 func startWorkerNode(nc *nats.Conn) {
-	logger.Debug().Msgf("starting worker node (%s)", utils.WORKER_ID)
+	logger.Debug().Msgf("starting worker node %s with slots %d", utils.WORKER_ID, utils.SLOTS)
 
 	availableSlots := atomic.NewInt64(utils.SLOTS)
 
@@ -89,7 +89,7 @@ func startWorkerNode(nc *nats.Conn) {
 		}
 
 		// Check whether we have enough available slots
-		if request.Requirements.Slots > availableSlots.Load() {
+		if request.Requirements.Slots < availableSlots.Load() {
 			logger.Debug().Msgf(
 				"worker %s cannot fulfill request, not enough slots",
 				utils.WORKER_ID,
