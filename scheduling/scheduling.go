@@ -26,9 +26,8 @@ type (
 	}
 
 	ReserveRequest struct {
-		Task      string
-		Payload   map[string]any
-		RequestID string
+		Task    string
+		Payload map[string]any
 	}
 
 	ReserveResponse struct {
