@@ -58,10 +58,8 @@ func startWorkerNode(nc *nats.Conn) {
 	releaseResources := func(requestID string) {
 		slots, found := reservations.LoadAndDelete(requestID)
 		if !found {
-			logger.Fatal().Msgf(
-				"did not find reservation for request %s, crashing to reset!",
-				requestID,
-			)
+			// We didn't even have it, ignore
+			return
 		}
 		availableSlots.Add(slots.(int64))
 		logger.Debug().Msgf("worker %s released resources", utils.WORKER_ID)
