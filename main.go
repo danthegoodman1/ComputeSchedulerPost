@@ -124,7 +124,7 @@ func startWorkerNode(nc *nats.Conn) {
 		utils.JSONMustUnmarshal(msg.Data, &reservation)
 		logger.Debug().Msgf("Got reservation on worker node %s with payload %+v", utils.WORKER_ID, reservation)
 
-		if sleepSec, ok := reservation.Payload["Num"].(float64); ok {
+		if sleepSec, ok := reservation.Payload["SleepSec"].(float64); ok {
 			logger.Debug().Msgf(
 				"worker %s sleeping for %d seconds",
 				utils.WORKER_ID,
