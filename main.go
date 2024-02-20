@@ -124,6 +124,15 @@ func startWorkerNode(nc *nats.Conn) {
 		utils.JSONMustUnmarshal(msg.Data, &reservation)
 		logger.Debug().Msgf("Got reservation on worker node %s with payload %+v", utils.WORKER_ID, reservation)
 
+		if sleepSec, ok := reservation.Payload["Num"].(float64); ok {
+			logger.Debug().Msgf(
+				"worker %s sleeping for %d seconds",
+				utils.WORKER_ID,
+				sleepSec,
+			)
+			time.Sleep(time.Second * time.Duration(sleepSec))
+		}
+
 		err = msg.Respond(utils.JSONMustMarshal(scheduling.ReserveResponse{
 			Error: nil,
 			Payload: map[string]any{ // float64 because of JSON
