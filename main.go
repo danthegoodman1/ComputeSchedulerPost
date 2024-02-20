@@ -55,6 +55,18 @@ func startWorkerNode(nc *nats.Conn) {
 	// We need a sync map to track reservations
 	reservations := sync.Map{}
 
+	releaseResources := func(requestID string) {
+		slots, found := reservations.LoadAndDelete(requestID)
+		if !found {
+			logger.Fatal().Msgf(
+				"did not find reservation for request %s, crashing to reset!",
+				requestID,
+			)
+		}
+		availableSlots.Add(slots.(int64))
+		logger.Debug().Msgf("worker %s released resources")
+	}
+
 	// Scheduling loop
 	_, err := nc.Subscribe("scheduling.request.*", func(msg *nats.Msg) {
 		logger.Debug().Msgf("Worker %s got scheduling request, reserving resources", utils.WORKER_ID)
@@ -72,6 +84,7 @@ func startWorkerNode(nc *nats.Conn) {
 				"worker %s cannot fulfill request, different region",
 				utils.WORKER_ID,
 			)
+			releaseResources(request.RequestID)
 			return
 		}
 
@@ -81,6 +94,8 @@ func startWorkerNode(nc *nats.Conn) {
 				"worker %s cannot fulfill request, not enough slots",
 				utils.WORKER_ID,
 			)
+			releaseResources(request.RequestID)
+			return
 		}
 
 		err := msg.Respond(utils.JSONMustMarshal(scheduling.ScheduleResponse{
@@ -104,14 +119,7 @@ func startWorkerNode(nc *nats.Conn) {
 			return
 		}
 
-		slots, found := reservations.LoadAndDelete(payload.RequestID)
-		if !found {
-			logger.Fatal().Msgf(
-				"did not find reservation for request %s, crashing to reset!",
-				payload.RequestID,
-			)
-		}
-		availableSlots.Add(slots.(int64))
+		releaseResources(payload.RequestID)
 
 		logger.Debug().Msgf("Worker %s releasing resources", utils.WORKER_ID)
 	})
@@ -145,14 +153,7 @@ func startWorkerNode(nc *nats.Conn) {
 		}
 
 		// we are done, we can release resources
-		slots, found := reservations.LoadAndDelete(reservation.RequestID)
-		if !found {
-			logger.Fatal().Msgf(
-				"did not find reservation for request %s, crashing to reset!",
-				reservation.RequestID,
-			)
-		}
-		availableSlots.Add(slots.(int64))
+		releaseResources(reservation.RequestID)
 	})
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("error subscribing to scheduling.reserve.%s", utils.WORKER_ID)
