@@ -47,8 +47,9 @@ func (s *HTTPServer) PostSchedule(c *CustomContext) error {
 
 	// Tell the worker that they are reserved, and to do the task
 	msg, err = s.NatsClient.Request(fmt.Sprintf("scheduling.reserve_task.%s", workerRes.WorkerID), utils.JSONMustMarshal(scheduling.ReserveRequest{
-		Task:    body.Task,
-		Payload: body.Payload,
+		Task:      body.Task,
+		Payload:   body.Payload,
+		RequestID: c.RequestID,
 	}), time.Second*5)
 
 	var reserveRes scheduling.ReserveResponse
