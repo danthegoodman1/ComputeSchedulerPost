@@ -64,7 +64,7 @@ func startWorkerNode(nc *nats.Conn) {
 			)
 		}
 		availableSlots.Add(slots.(int64))
-		logger.Debug().Msgf("worker %s released resources")
+		logger.Debug().Msgf("worker %s released resources", utils.WORKER_ID)
 	}
 
 	// Scheduling loop
