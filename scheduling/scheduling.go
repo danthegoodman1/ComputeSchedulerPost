@@ -2,8 +2,10 @@ package scheduling
 
 type (
 	Requirements struct {
-		// Fake resource
-		FooPoints int
+		Region string
+
+		// Arbitrary compute unit
+		Slots int64 `validate:"required,gte=1"`
 	}
 
 	ScheduleRequest struct {
@@ -24,8 +26,9 @@ type (
 	}
 
 	ReserveRequest struct {
-		Task    string
-		Payload map[string]any
+		Task      string
+		Payload   map[string]any
+		RequestID string
 	}
 
 	ReserveResponse struct {
