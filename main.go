@@ -73,30 +73,28 @@ func startWorkerNode(nc *nats.Conn) {
 		var request scheduling.ScheduleRequest
 		utils.JSONMustUnmarshal(msg.Data, &request)
 
-		// Reserve the slots
-		// Note: would need better handling to protect against going negative in prod
-		availableSlots.Sub(request.Requirements.Slots)
-		reservations.Store(request.RequestID, request.Requirements.Slots)
-
 		// Check whether the region matches (if provided)
 		if request.Requirements.Region != "" && request.Requirements.Region != utils.REGION {
 			logger.Debug().Msgf(
 				"worker %s cannot fulfill request, different region",
 				utils.WORKER_ID,
 			)
-			releaseResources(request.RequestID)
 			return
 		}
 
 		// Check whether we have enough available slots
-		if request.Requirements.Slots < availableSlots.Load() {
+		if request.Requirements.Slots > availableSlots.Load() {
 			logger.Debug().Msgf(
 				"worker %s cannot fulfill request, not enough slots",
 				utils.WORKER_ID,
 			)
-			releaseResources(request.RequestID)
 			return
 		}
+
+		// Reserve the slots
+		// Note: would need better handling to protect against going negative in prod
+		availableSlots.Sub(request.Requirements.Slots)
+		reservations.Store(request.RequestID, request.Requirements.Slots)
 
 		err := msg.Respond(utils.JSONMustMarshal(scheduling.ScheduleResponse{
 			WorkerID: utils.WORKER_ID,
